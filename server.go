@@ -35,6 +35,8 @@ type ExchangeRateResponse struct {
 	Bid float64
 }
 
+var rowsFound = errors.New("Rows found")
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/cotacao", getExchangeRate)
@@ -65,13 +67,16 @@ func getExchangeRate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = existRateByTimestamp(db, exchangeRate.Rate.Timestamp)
-	if err != nil {
+	log.Println(err)
+	if err != nil && !errors.Is(err, rowsFound) {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
 
-	saveExchangeRate(db, exchangeRate)
+	if !errors.Is(err, rowsFound) {
+		saveExchangeRate(db, exchangeRate)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -91,7 +96,7 @@ func getDollarExchangeRate() ([]byte, error) {
 	}
 
 	res, err := http.DefaultClient.Do(req)
-	if err != nil {
+	if err != nil && errors.Is(err, rowsFound) {
 		return nil, err
 	}
 	defer res.Body.Close()
@@ -147,13 +152,17 @@ func existRateByTimestamp(db *sql.DB, timestamp int) error {
 
 	var id int
 	err = stmt.QueryRow(timestamp).Scan(&id)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 
 	if id >= 1 {
-		return nil
+		return rowsFound
 	}
 
-	return errors.New("Unexpected error")
+	return nil
 }
