@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	_ "github.com/mattn/go-sqlite3"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -29,27 +31,53 @@ type ExchangeRateDetail struct {
 	CreateDate string  `json:"create_date"`
 }
 
+type ExchangeRateResponse struct {
+	Bid float64
+}
+
 func main() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/cotacao", getExchangeRate)
+	http.ListenAndServe(":8080", mux)
+}
+
+func getExchangeRate(w http.ResponseWriter, r *http.Request) {
 	rate, err := getDollarExchangeRate()
 	if err != nil {
-		panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 
 	var exchangeRate ExchangeRate
 	err = json.Unmarshal(rate, &exchangeRate)
 	if err != nil {
-		panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 
 	db, err := sql.Open("sqlite3", "./exchange.db")
 	if err != nil {
-		panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 
-	exist := existRateByTimestamp(db, exchangeRate.Rate.Timestamp)
-	if !exist {
-		saveExchangeRate(db, exchangeRate)
+	err = existRateByTimestamp(db, exchangeRate.Rate.Timestamp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
+
+	saveExchangeRate(db, exchangeRate)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := ExchangeRateResponse{Bid: exchangeRate.Rate.Bid}
+	json.NewEncoder(w).Encode(response)
 }
 
 func getDollarExchangeRate() ([]byte, error) {
@@ -111,21 +139,21 @@ func saveExchangeRate(db *sql.DB, rate ExchangeRate) error {
 	return nil
 }
 
-func existRateByTimestamp(db *sql.DB, timestamp int) bool {
+func existRateByTimestamp(db *sql.DB, timestamp int) error {
 	stmt, err := db.Prepare("SELECT id FROM exchange_rates WHERE timestamp = ? LIMIT 1")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var id int
 	err = stmt.QueryRow(timestamp).Scan(&id)
 	if err != nil {
-		return false
+		return err
 	}
 
 	if id >= 1 {
-		return true
+		return nil
 	}
 
-	return false
+	return errors.New("Unexpected error")
 }
