@@ -120,7 +120,7 @@ func saveExchangeRate(db *sql.DB, rate ExchangeRate) error {
 				
       `)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer cancel()
 
