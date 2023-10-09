@@ -75,7 +75,13 @@ func getExchangeRate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !errors.Is(err, rowsFound) {
-		saveExchangeRate(db, exchangeRate)
+		err = saveExchangeRate(db, exchangeRate)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

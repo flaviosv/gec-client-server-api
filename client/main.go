@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,6 +44,9 @@ func getExchangeRate() ([]byte, error) {
 	defer cancel()
 
 	res, err := http.DefaultClient.Do(req)
+	if res.StatusCode != 200 {
+		return nil, errors.New("Error processing the request")
+	}
 	if err != nil {
 		return nil, err
 	}
