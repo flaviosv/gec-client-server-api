@@ -28,3 +28,10 @@ O endpoint necessário gerado pelo server.go para este desafio será: /cotacao e
 Ao finalizar, envie o link do repositório para correção.
 
 ---
+
+# Guidelines
+
+Para executar corretamente e evitar problemas com paths, execute os arquivos main.go direto da raiz do projeto
+
+- ```go run server/main.go```
+- ```go run client/main.go```
